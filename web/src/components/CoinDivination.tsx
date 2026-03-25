@@ -11,8 +11,13 @@ const VALUE_LABELS: Record<number, string> = {
   9: '老阳 ⚊ (变)',
 }
 
-export default function CoinDivination() {
+interface Props {
+  question?: string
+}
+
+export default function CoinDivination({ question }: Props) {
   const [result, setResult] = useState<HexagramResult | null>(null)
+  const [savedQuestion, setSavedQuestion] = useState<string>('')
   const [tossing, setTossing] = useState(false)
   const [revealedCount, setRevealedCount] = useState(0)
 
@@ -20,6 +25,7 @@ export default function CoinDivination() {
     setTossing(true)
     setResult(null)
     setRevealedCount(0)
+    setSavedQuestion(question?.trim() || '')
 
     const hexResult = performDivination()
 
@@ -37,7 +43,7 @@ export default function CoinDivination() {
 
     // 立即存储用于逐步显示
     setResult(hexResult)
-  }, [])
+  }, [question])
 
   const hasChanging = result?.lines.some((l) => l.changing) ?? false
 
@@ -51,12 +57,6 @@ export default function CoinDivination() {
 
   return (
     <section className="divination">
-      <h2 className="divination-title">硬币起卦</h2>
-      <p className="divination-desc">
-        虔心默念所问之事，点击下方开始占卜。<br />
-        系统将模拟抛掷三枚铜钱六次，逐爻生成卦象。
-      </p>
-
       <button
         className="divination-btn"
         onClick={startDivination}
@@ -64,6 +64,14 @@ export default function CoinDivination() {
       >
         {tossing ? '起卦中…' : result ? '重新起卦' : '🪙 开始起卦'}
       </button>
+
+      {/* 所问之事 */}
+      {result && savedQuestion && !tossing && (
+        <div className="question-banner">
+          <span className="question-banner-label">所问</span>
+          <span className="question-banner-text">{savedQuestion}</span>
+        </div>
+      )}
 
       {/* 逐爻展示 */}
       {result && (

@@ -15,21 +15,6 @@
     var(--bg);
 }
 
-.divination-title {
-  font-size: 1.5rem;
-  letter-spacing: 0.15em;
-  margin: 0;
-  color: var(--text-h);
-}
-
-.divination-desc {
-  text-align: center;
-  font-size: 0.92rem;
-  line-height: 1.7;
-  color: var(--text);
-  max-width: 420px;
-}
-
 /* ---------- 起卦按钮 ---------- */
 
 .divination-btn {
@@ -265,6 +250,50 @@
 .hex-card-trigrams {
   font-size: 0.78rem;
   color: var(--text);
+}
+
+/* ---------- 所问标签 ---------- */
+
+.question-banner {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  width: 100%;
+  max-width: 500px;
+  padding: 10px 16px;
+  border-radius: 8px;
+  background: rgba(170, 130, 60, 0.06);
+  border: 1px solid rgba(170, 130, 60, 0.15);
+}
+
+.question-banner-label {
+  flex-shrink: 0;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: #b45309;
+  padding: 1px 8px;
+  border-radius: 4px;
+  background: rgba(180, 83, 9, 0.08);
+}
+
+.question-banner-text {
+  font-size: 0.92rem;
+  line-height: 1.6;
+  color: var(--text-h);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+@media (prefers-color-scheme: dark) {
+  .question-banner {
+    background: rgba(160, 128, 64, 0.08);
+    border-color: rgba(160, 128, 64, 0.2);
+  }
+  .question-banner-label {
+    color: #fbbf24;
+    background: rgba(251, 191, 36, 0.1);
+  }
 }
 
 /* ---------- 响应式 ---------- */
