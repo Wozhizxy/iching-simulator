@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { performDivination, getHexagramInfo } from '../divination'
 import type { HexagramResult, YaoLine } from '../divination'
 import './CoinDivination.css'
@@ -11,6 +11,11 @@ const VALUE_LABELS: Record<number, string> = {
   9: '老阳 ⚊ (变)',
 }
 
+/** 单次抛掷动画持续时间 ms */
+const TOSS_DURATION = 1200
+/** 落地后停留时间 ms */
+const SETTLE_DELAY = 300
+
 interface Props {
   question?: string
 }
@@ -21,28 +26,61 @@ export default function CoinDivination({ question }: Props) {
   const [tossing, setTossing] = useState(false)
   const [revealedCount, setRevealedCount] = useState(0)
 
+  /** 当前正在播放抛掷动画的硬币面（用于 3 枚硬币展示） */
+  const [tossCoins, setTossCoins] = useState<boolean[] | null>(null)
+  /** 是否处于硬币飞行阶段 */
+  const [coinFlying, setCoinFlying] = useState(false)
+  /** 硬币已落地，短暂展示结果 */
+  const [coinLanded, setCoinLanded] = useState(false)
+
+  const timerRef = useRef<ReturnType<typeof setTimeout>>(null)
+
   const startDivination = useCallback(() => {
     setTossing(true)
     setResult(null)
     setRevealedCount(0)
     setSavedQuestion(question?.trim() || '')
+    setTossCoins(null)
+    setCoinFlying(false)
+    setCoinLanded(false)
 
     const hexResult = performDivination()
-
-    // 逐爻揭示动画：每爻间隔 600ms
-    let revealed = 0
-    const timer = setInterval(() => {
-      revealed++
-      setRevealedCount(revealed)
-      if (revealed >= 6) {
-        clearInterval(timer)
-        setResult(hexResult)
-        setTossing(false)
-      }
-    }, 600)
-
     // 立即存储用于逐步显示
     setResult(hexResult)
+
+    let revealed = 0
+
+    const revealNext = () => {
+      const line = hexResult.lines[revealed]
+      // 1) 发射硬币
+      setTossCoins(line.coins)
+      setCoinFlying(true)
+      setCoinLanded(false)
+
+      // 2) 飞行结束 → 落地
+      timerRef.current = setTimeout(() => {
+        setCoinFlying(false)
+        setCoinLanded(true)
+
+        // 3) 短暂停留后揭示该爻
+        timerRef.current = setTimeout(() => {
+          revealed++
+          setRevealedCount(revealed)
+          setCoinLanded(false)
+
+          if (revealed >= 6) {
+            setTossCoins(null)
+            setTossing(false)
+          } else {
+            // 下一爻
+            timerRef.current = setTimeout(revealNext, 200)
+          }
+        }, SETTLE_DELAY)
+      }, TOSS_DURATION)
+    }
+
+    // 启动第一次抛掷
+    timerRef.current = setTimeout(revealNext, 300)
   }, [question])
 
   const hasChanging = result?.lines.some((l) => l.changing) ?? false
@@ -64,6 +102,42 @@ export default function CoinDivination({ question }: Props) {
       >
         {tossing ? '起卦中…' : result ? '重新起卦' : '🪙 开始起卦'}
       </button>
+
+      {/* 抛掷动画区域 */}
+      {tossCoins && (
+        <div className="toss-stage">
+          <div className="toss-coins-row">
+            {tossCoins.map((face, i) => (
+              <div
+                key={`${revealedCount}-${i}`}
+                className={`toss-coin${coinFlying ? ' flying' : ''}${coinLanded ? ' landed' : ''}`}
+                style={{ animationDelay: `${i * 120}ms` }}
+              >
+                <div className="toss-coin-inner">
+                  <div className="toss-coin-front">字</div>
+                  <div className="toss-coin-back">花</div>
+                </div>
+                {/* 落地后显示实际结果 */}
+                {coinLanded && (
+                  <div className={`toss-coin-result ${face ? 'heads' : 'tails'}`}>
+                    {face ? '字' : '花'}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+          {/* 地面阴影 */}
+          <div className="toss-shadows">
+            {tossCoins.map((_, i) => (
+              <div
+                key={i}
+                className={`toss-shadow${coinFlying ? ' flying' : ''}${coinLanded ? ' landed' : ''}`}
+                style={{ animationDelay: `${i * 120}ms` }}
+              />
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* 所问之事 */}
       {result && savedQuestion && !tossing && (
@@ -90,25 +164,44 @@ export default function CoinDivination({ question }: Props) {
       {/* 卦象总结 */}
       {result && !tossing && (
         <div className="hex-summary">
-          <HexagramCard
-            label="本卦"
-            lines={originalLines}
-            name={originalInfo?.name ?? ''}
-            upper={originalInfo?.upperTrigram ?? ''}
-            lower={originalInfo?.lowerTrigram ?? ''}
-          />
-          {hasChanging && changedInfo && (
-            <>
-              <span className="hex-arrow">➜</span>
-              <HexagramCard
-                label="变卦"
-                lines={changedLines}
-                name={changedInfo.name}
-                upper={changedInfo.upperTrigram}
-                lower={changedInfo.lowerTrigram}
-              />
-            </>
+          {/* 动爻提示 */}
+          {hasChanging && (
+            <div className="changing-yao-hint">
+              <span className="changing-yao-icon">◈</span>
+              动爻在：{result.lines
+                .filter(l => l.changing)
+                .map(l => yaoFullName(l))
+                .join('、')}
+            </div>
           )}
+
+          <div className="hex-cards-row">
+            <HexagramCard
+              label="本卦"
+              lines={originalLines}
+              name={originalInfo?.name ?? ''}
+              upper={originalInfo?.upperTrigram ?? ''}
+              lower={originalInfo?.lowerTrigram ?? ''}
+            />
+            {hasChanging && changedInfo && (
+              <>
+                <span className="hex-arrow">➜</span>
+                <HexagramCard
+                  label="变卦"
+                  lines={changedLines}
+                  name={changedInfo.name}
+                  upper={changedInfo.upperTrigram}
+                  lower={changedInfo.lowerTrigram}
+                />
+              </>
+            )}
+          </div>
+
+          {/* 断卦指引 */}
+          <div className="reading-guidance">
+            <span className="reading-guidance-icon">📖</span>
+            <span>{getReadingGuidance(result.lines, originalInfo?.name ?? '', changedInfo?.name ?? '')}</span>
+          </div>
         </div>
       )}
     </section>
@@ -147,6 +240,9 @@ function YaoRow({
 
       {/* 数值标签 */}
       <span className="yao-label">{VALUE_LABELS[line.value]}</span>
+
+      {/* 动爻标记 */}
+      {line.changing && <span className="yao-changing-tag">动</span>}
     </div>
   )
 }
@@ -201,4 +297,59 @@ function positionName(pos: number): string {
 function yaoSymbol(line: YaoLine): string {
   if (line.type === 'yang') return line.changing ? '⚊ →' : '⚊'
   return line.changing ? '⚋ →' : '⚋'
+}
+
+/** 爻的完整名称，如"初九"、"六三"、"上六" */
+function yaoFullName(line: YaoLine): string {
+  const posNames = ['初', '二', '三', '四', '五', '上']
+  const posStr = posNames[line.position - 1] ?? String(line.position)
+  // 阳爻用"九"，阴爻用"六"
+  const typeStr = line.type === 'yang' ? '九' : '六'
+  // 传统命名：初X、X二、X三…上X（初和上位置在前）
+  if (line.position === 1) return `${posStr}${typeStr}`
+  if (line.position === 6) return `${posStr}${typeStr}`
+  return `${typeStr}${posStr}`
+}
+
+/**
+ * 根据变爻数量给出断卦指引（朱熹《筮仪》体系）
+ */
+function getReadingGuidance(
+  lines: YaoLine[],
+  originalName: string,
+  changedName: string,
+): string {
+  const changingLines = lines.filter(l => l.changing)
+  const count = changingLines.length
+
+  if (count === 0) {
+    return `六爻皆不变，看本卦「${originalName}」卦辞。`
+  }
+  if (count === 1) {
+    return `一爻变，看本卦「${originalName}」${yaoFullName(changingLines[0])}爻辞。`
+  }
+  if (count === 2) {
+    const upper = changingLines[changingLines.length - 1]
+    return `二爻变，看本卦「${originalName}」两个变爻爻辞，以${yaoFullName(upper)}为主。`
+  }
+  if (count === 3) {
+    return `三爻变，本卦「${originalName}」卦辞为主，变卦「${changedName}」卦辞为辅。`
+  }
+  if (count === 4) {
+    const stableLines = lines.filter(l => !l.changing)
+    const lower = stableLines[0]
+    return `四爻变，看变卦「${changedName}」中两个不变爻爻辞，以${yaoFullName(lower)}为主。`
+  }
+  if (count === 5) {
+    const stableLine = lines.find(l => !l.changing)!
+    return `五爻变，看变卦「${changedName}」${yaoFullName(stableLine)}爻辞。`
+  }
+  // count === 6
+  const isQianKun = originalName === '乾为天' || originalName === '坤为地'
+  if (isQianKun) {
+    return originalName === '乾为天'
+      ? `六爻全变，看「乾」卦"用九"。`
+      : `六爻全变，看「坤」卦"用六"。`
+  }
+  return `六爻全变，看变卦「${changedName}」卦辞。`
 }

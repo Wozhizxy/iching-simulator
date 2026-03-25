@@ -76,7 +76,7 @@
 
 .yao-row {
   display: grid;
-  grid-template-columns: 36px 90px 40px 1fr;
+  grid-template-columns: 36px 90px 40px 1fr auto;
   align-items: center;
   gap: 10px;
   padding: 6px 12px;
@@ -84,8 +84,9 @@
   font-size: 0.88rem;
   opacity: 0;
   transform: translateY(8px);
-  transition: opacity 0.35s ease, transform 0.35s ease;
+  transition: opacity 0.35s ease, transform 0.35s ease, background 0.3s ease;
   background: transparent;
+  border-left: 3px solid transparent;
 }
 
 .yao-row.visible {
@@ -101,9 +102,41 @@
   color: #b45309;
 }
 
+.yao-row.changing {
+  background: rgba(183, 142, 58, 0.07);
+  border-left-color: #b78e3a;
+}
+
+.yao-changing-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(135deg, #c9971e, #a07520);
+  border-radius: 4px;
+  padding: 1px 8px;
+  letter-spacing: 0.08em;
+  animation: tag-pop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes tag-pop {
+  0% { transform: scale(0); opacity: 0; }
+  60% { transform: scale(1.15); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
 @media (prefers-color-scheme: dark) {
   .yao-row.changing .yao-label {
     color: #fbbf24;
+  }
+  .yao-row.changing {
+    background: rgba(160, 128, 64, 0.1);
+    border-left-color: #d4a94a;
+  }
+  .yao-changing-tag {
+    background: linear-gradient(135deg, #b78e3a, #8a6a2a);
   }
 }
 
@@ -170,11 +203,75 @@
 
 .hex-summary {
   display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  margin-top: 8px;
+  width: 100%;
+  max-width: 500px;
+}
+
+.hex-cards-row {
+  display: flex;
   align-items: center;
   gap: 24px;
-  margin-top: 8px;
   flex-wrap: wrap;
   justify-content: center;
+}
+
+/* 动爻提示横幅 */
+.changing-yao-hint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #92400e;
+  background: rgba(183, 142, 58, 0.08);
+  border: 1px solid rgba(183, 142, 58, 0.18);
+}
+
+.changing-yao-icon {
+  font-size: 1rem;
+  color: #b78e3a;
+}
+
+/* 断卦指引 */
+.reading-guidance {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  line-height: 1.6;
+  color: var(--text-h);
+  background: rgba(120, 80, 40, 0.05);
+  border: 1px dashed rgba(170, 130, 60, 0.2);
+}
+
+.reading-guidance-icon {
+  flex-shrink: 0;
+  font-size: 1.1rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  .changing-yao-hint {
+    color: #fbbf24;
+    background: rgba(160, 128, 64, 0.1);
+    border-color: rgba(160, 128, 64, 0.25);
+  }
+  .changing-yao-icon {
+    color: #d4a94a;
+  }
+  .reading-guidance {
+    background: rgba(160, 128, 64, 0.06);
+    border-color: rgba(160, 128, 64, 0.18);
+  }
 }
 
 .hex-arrow {
@@ -254,6 +351,283 @@
 
 /* ---------- 所问标签 ---------- */
 
+/* ========================================
+   硬币抛掷 3D 动画
+   ======================================== */
+
+.toss-stage {
+  position: relative;
+  width: 100%;
+  max-width: 320px;
+  height: 180px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  perspective: 600px;
+  margin: 8px 0;
+}
+
+.toss-coins-row {
+  display: flex;
+  gap: 32px;
+  justify-content: center;
+  position: relative;
+  z-index: 2;
+}
+
+/* --- 单枚硬币容器 --- */
+.toss-coin {
+  position: relative;
+  width: 52px;
+  height: 52px;
+}
+
+.toss-coin-inner {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  position: relative;
+  transform-style: preserve-3d;
+  /* 默认：不可见 */
+  opacity: 0;
+}
+
+/* 飞行阶段 — 单一动画同时处理垂直弧线 + 3D翻转 */
+.toss-coin.flying .toss-coin-inner {
+  opacity: 1;
+  animation: coin-toss 1.2s cubic-bezier(0.22, 0.8, 0.36, 1) forwards;
+  animation-delay: inherit;
+}
+
+/* 落地阶段 */
+.toss-coin.landed .toss-coin-inner {
+  opacity: 0;
+}
+
+/* 落地后的结果硬币 */
+.toss-coin-result {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: 0.85rem;
+  font-weight: 700;
+  border: 2px solid;
+  animation: coin-bounce 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.toss-coin-result.heads {
+  background: linear-gradient(145deg, #fef3c7, #fcd34d);
+  border-color: #d4a94a;
+  color: #92400e;
+  box-shadow:
+    0 2px 8px rgba(212, 169, 74, 0.35),
+    inset 0 1px 2px rgba(255, 255, 255, 0.5);
+}
+
+.toss-coin-result.tails {
+  background: linear-gradient(145deg, #e5e7eb, #b0b5bd);
+  border-color: #9ca3af;
+  color: #374151;
+  box-shadow:
+    0 2px 8px rgba(107, 114, 128, 0.35),
+    inset 0 1px 2px rgba(255, 255, 255, 0.4);
+}
+
+/* --- 硬币正反面（3D 翻转用） --- */
+.toss-coin-front,
+.toss-coin-back {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: 0.85rem;
+  font-weight: 700;
+  backface-visibility: hidden;
+  border: 2px solid;
+}
+
+.toss-coin-front {
+  background: linear-gradient(145deg, #fef3c7, #fcd34d);
+  border-color: #d4a94a;
+  color: #92400e;
+  box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.5);
+}
+
+.toss-coin-back {
+  background: linear-gradient(145deg, #e5e7eb, #b0b5bd);
+  border-color: #9ca3af;
+  color: #374151;
+  transform: rotateX(180deg);
+  box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.4);
+}
+
+/* --- 地面阴影 --- */
+.toss-shadows {
+  display: flex;
+  gap: 32px;
+  justify-content: center;
+  margin-top: 10px;
+}
+
+.toss-shadow {
+  width: 40px;
+  height: 8px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(0, 0, 0, 0.18) 0%, transparent 70%);
+  opacity: 0;
+}
+
+.toss-shadow.flying {
+  animation: shadow-pulse 1.2s cubic-bezier(0.22, 0.8, 0.36, 1) forwards;
+  animation-delay: inherit;
+}
+
+.toss-shadow.landed {
+  opacity: 1;
+  width: 44px;
+  height: 10px;
+  background: radial-gradient(ellipse, rgba(0, 0, 0, 0.22) 0%, transparent 70%);
+}
+
+/* ========================================
+   关键帧动画
+   ======================================== */
+
+/* 合并：抛物线弧线 + 3D 翻转旋转 */
+@keyframes coin-toss {
+  0% {
+    transform: translateY(0) rotateX(0deg) scale(1);
+    opacity: 1;
+  }
+  10% {
+    transform: translateY(-80px) rotateX(360deg) scale(1.1);
+  }
+  20% {
+    transform: translateY(-125px) rotateX(720deg) scale(1.18);
+  }
+  30% {
+    transform: translateY(-140px) rotateX(1080deg) scale(1.2);
+  }
+  40% {
+    transform: translateY(-130px) rotateX(1260deg) scale(1.15);
+  }
+  50% {
+    transform: translateY(-105px) rotateX(1440deg) scale(1.1);
+  }
+  60% {
+    transform: translateY(-70px) rotateX(1560deg) scale(1.06);
+  }
+  70% {
+    transform: translateY(-35px) rotateX(1650deg) scale(1.02);
+  }
+  80% {
+    transform: translateY(-8px) rotateX(1720deg) scale(1);
+  }
+  88% {
+    transform: translateY(0px) rotateX(1760deg) scale(1);
+  }
+  /* 小回弹 */
+  93% {
+    transform: translateY(-10px) rotateX(1780deg) scale(1);
+  }
+  97% {
+    transform: translateY(0px) rotateX(1795deg) scale(1);
+  }
+  100% {
+    transform: translateY(0) rotateX(1800deg) scale(1);
+    opacity: 1;
+  }
+}
+
+/* 落地弹跳 */
+@keyframes coin-bounce {
+  0% {
+    transform: translateY(-20px) scale(0.9);
+    opacity: 0;
+  }
+  50% {
+    transform: translateY(4px) scale(1.05);
+    opacity: 1;
+  }
+  75% {
+    transform: translateY(-3px) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+/* 阴影脉冲 */
+@keyframes shadow-pulse {
+  0% {
+    opacity: 0.6;
+    transform: scaleX(1);
+  }
+  15% {
+    opacity: 0.2;
+    transform: scaleX(0.5);
+  }
+  30% {
+    opacity: 0.15;
+    transform: scaleX(0.4);
+  }
+  50% {
+    opacity: 0.2;
+    transform: scaleX(0.5);
+  }
+  90% {
+    opacity: 0.7;
+    transform: scaleX(1.1);
+  }
+  100% {
+    opacity: 0.8;
+    transform: scaleX(1);
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  .toss-coin-front {
+    background: linear-gradient(145deg, #6b5230, #8a6a3a);
+    border-color: #a08040;
+    color: #fde68a;
+  }
+  .toss-coin-back {
+    background: linear-gradient(145deg, #374151, #4b5563);
+    border-color: #6b7280;
+    color: #d1d5db;
+  }
+  .toss-coin-result.heads {
+    background: linear-gradient(145deg, #6b5230, #8a6a3a);
+    border-color: #a08040;
+    color: #fde68a;
+    box-shadow: 0 2px 8px rgba(160, 128, 64, 0.3);
+  }
+  .toss-coin-result.tails {
+    background: linear-gradient(145deg, #374151, #4b5563);
+    border-color: #6b7280;
+    color: #d1d5db;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  }
+  .toss-shadow {
+    background: radial-gradient(ellipse, rgba(0, 0, 0, 0.35) 0%, transparent 70%);
+  }
+  .toss-shadow.landed {
+    background: radial-gradient(ellipse, rgba(0, 0, 0, 0.4) 0%, transparent 70%);
+  }
+}
+
+/* ========================================
+   所问标签
+   ======================================== */
+
 .question-banner {
   display: flex;
   align-items: baseline;
@@ -299,8 +673,32 @@
 /* ---------- 响应式 ---------- */
 
 @media (max-width: 520px) {
+  .toss-stage {
+    height: 150px;
+    max-width: 260px;
+  }
+
+  .toss-coins-row {
+    gap: 24px;
+  }
+
+  .toss-coin {
+    width: 42px;
+    height: 42px;
+  }
+
+  .toss-coin-front,
+  .toss-coin-back,
+  .toss-coin-result {
+    font-size: 0.75rem;
+  }
+
+  .toss-shadows {
+    gap: 24px;
+  }
+
   .yao-row {
-    grid-template-columns: 30px 80px 36px 1fr;
+    grid-template-columns: 30px 80px 36px 1fr auto;
     gap: 6px;
     font-size: 0.82rem;
   }
