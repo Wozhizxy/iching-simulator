@@ -1,4 +1,5 @@
 import './App.css'
+import CoinDivination from './components/CoinDivination'
 
 function App() {
   return (
@@ -45,6 +46,8 @@ function App() {
           </span>
         </div>
       </section>
+
+      <CoinDivination />
 
       <footer className="app-footer">
         <a
