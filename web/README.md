@@ -41,7 +41,7 @@ npm run preview
 
 ```bash
 npm run build
-npm run deployment
+npm run deploy
 ```
 
 先构建项目，再将 `dist/` 推送到仓库的 `gh-pages` 分支。
