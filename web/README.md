@@ -40,10 +40,11 @@ npm run preview
 本项目使用 [`gh-pages`](https://github.com/tschaub/gh-pages) 一键部署。
 
 ```bash
-npm run deploy
+npm run build
+npm run deployment
 ```
 
-该命令会自动执行 `build` 后将 `dist/` 推送到仓库的 `gh-pages` 分支。
+先构建项目，再将 `dist/` 推送到仓库的 `gh-pages` 分支。
 部署成功后访问地址为：
 
 ```
