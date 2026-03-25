@@ -25,6 +25,15 @@
   letter-spacing: 0.06em;
 }
 
+.app-slogan {
+  color: var(--color-gold, #b78e3a);
+  font-size: 0.85rem;
+  margin: 12px 0 0;
+  letter-spacing: 0.18em;
+  font-style: italic;
+  opacity: 0.85;
+}
+
 /* ---------- 心中所问 ---------- */
 
 .question-section {
@@ -84,4 +93,26 @@
 .app-footer a {
   color: inherit;
   text-decoration: underline;
+}
+
+@media (max-width: 520px) {
+  .app {
+    padding: 36px 16px 28px;
+  }
+
+  .app-header {
+    margin-bottom: 20px;
+  }
+
+  .app-title {
+    font-size: 1.8rem;
+  }
+
+  .question-section {
+    margin-bottom: 18px;
+  }
+
+  .app-footer {
+    padding-top: 36px;
+  }
 }

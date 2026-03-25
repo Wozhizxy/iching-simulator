@@ -10,6 +10,7 @@ function App() {
       <header className="app-header">
         <h1 className="app-title">🔮 易经占卜</h1>
         <p className="app-subtitle">心诚则灵 · 三枚铜钱起卦</p>
+        <p className="app-slogan">不诚不占 · 不义不占 · 不疑不占</p>
       </header>
 
       {/* 心中所问 */}
