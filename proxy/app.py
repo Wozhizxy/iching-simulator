@@ -68,7 +68,7 @@ def ai_interpret():
 
     # 构建智谱API请求 - 启用流式响应
     request_data = {
-        "model": "glm-4-flash",
+        "model": "glm-4.7-flash",
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_message}
