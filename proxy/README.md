@@ -12,13 +12,55 @@ This is a proxy server for integrating AI interpretation capabilities into the I
 
 ## Getting Started
 
-### Prerequisites
+### Python Version (Recommended)
+
+#### Prerequisites
+
+- Python 3.7+
+- pip
+- Zhipu AI API key (free tier available)
+
+#### Installation
+
+1. **Navigate to the proxy directory**
+   ```bash
+   cd proxy
+   ```
+
+2. **Install dependencies**
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+3. **Configure environment variables**
+   - Copy the example env file
+     ```bash
+     cp .env.example .env
+     ```
+   - Edit `.env` file and add your Zhipu API key
+     ```
+     ZHIPU_API_KEY=your_zhipu_api_key_here
+     PORT=3001
+     ```
+
+#### Running the Server
+
+**Development mode**:
+```bash
+python app.py
+```
+
+The server will run on `http://localhost:3001`
+
+### Node.js Version (Legacy)
+
+#### Prerequisites
 
 - Node.js (v14+)
 - npm
 - Zhipu AI API key (free tier available)
 
-### Installation
+#### Installation
 
 1. **Navigate to the proxy directory**
    ```bash
@@ -41,7 +83,7 @@ This is a proxy server for integrating AI interpretation capabilities into the I
      PORT=3001
      ```
 
-### Running the Server
+#### Running the Server
 
 **Development mode** (with nodemon):
 ```bash
@@ -97,7 +139,69 @@ The server will run on `http://localhost:3001`
 
 ## Deployment
 
-### On Aliyun Lightweight Server
+### Python Version Deployment
+
+#### On Aliyun Lightweight Server
+
+1. **SSH into your server**
+   ```bash
+   ssh root@your-server-ip
+   ```
+
+2. **Install Python and pip**
+   ```bash
+   apt update
+   apt install python3 python3-pip
+   ```
+
+3. **Clone the repository**
+   ```bash
+   git clone https://github.com/your-username/iching-simulator.git
+   cd iching-simulator/proxy
+   ```
+
+4. **Install dependencies**
+   ```bash
+   pip3 install -r requirements.txt
+   ```
+
+5. **Configure environment variables**
+   ```bash
+   cp .env.example .env
+   # Edit .env file with your Zhipu API key
+   nano .env
+   ```
+
+6. **Start the server**
+   ```bash
+   python3 app.py
+   ```
+
+7. **Set up a process manager** (recommended)
+   ```bash
+   pip3 install gunicorn
+   gunicorn -w 4 -b 0.0.0.0:3001 app:app
+   
+   # To run as a service, create a systemd service file
+   # Example service file:
+   # /etc/systemd/system/iching-proxy.service
+   # [Unit]
+   # Description=I Ching AI Proxy Server
+   # After=network.target
+   #
+   # [Service]
+   # User=root
+   # WorkingDirectory=/path/to/iching-simulator/proxy
+   # ExecStart=/usr/local/bin/gunicorn -w 4 -b 0.0.0.0:3001 app:app
+   # Restart=always
+   #
+   # [Install]
+   # WantedBy=multi-user.target
+   ```
+
+### Node.js Version Deployment
+
+#### On Aliyun Lightweight Server
 
 1. **SSH into your server**
    ```bash
@@ -137,7 +241,7 @@ The server will run on `http://localhost:3001`
 
 ### Frontend Configuration
 
-Update the API endpoint in `CoinDivination.tsx` to point to your server:
+The Python version uses the same API endpoint as the Node.js version, so no changes are needed in the frontend code. Simply update the API endpoint in `CoinDivination.tsx` to point to your server:
 
 ```typescript
 // Change this line
