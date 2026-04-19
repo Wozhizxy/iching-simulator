@@ -1,0 +1,23 @@
+.markdown-with-cursor {
+  position: relative;
+  min-height: 1.5em;
+}
+
+.markdown-with-cursor > :last-child {
+  margin-bottom: 0;
+}
+
+.markdown-with-cursor.loading > :last-child::after {
+  content: '▋';
+  display: inline-block;
+  margin-left: 2px;
+  color: #1e90ff;
+  font-weight: bold;
+  animation: blink-cursor 1s steps(1) infinite;
+  font-size: 1.1em;
+}
+
+@keyframes blink-cursor {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}

@@ -2,6 +2,7 @@ import { useState, useCallback, useRef } from 'react'
 import { performDivination, getHexagramInfo } from '../divination'
 import type { HexagramResult, YaoLine } from '../divination'
 import './CoinDivination.css'
+import MarkdownWithCursor from './MarkdownWithCursor'
 
 /** 爻线值含义映射 */
 const VALUE_LABELS: Record<number, string> = {
@@ -345,7 +346,7 @@ export default function CoinDivination({ question }: Props) {
             {aiInterpretation.length > 0 && (
               <div className="ai-interpretation">
                 <h3 className="ai-title">AI卦象分析</h3>
-                <div className="ai-content">{aiInterpretation}</div>
+                <MarkdownWithCursor content={aiInterpretation} loading={isLoadingAi} />
               </div>
             )}
           </div>
