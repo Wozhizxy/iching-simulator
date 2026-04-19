@@ -104,7 +104,7 @@ export default function CoinDivination({ question }: Props) {
 
   // 调用AI解释API - SSE版本
   const getAiInterpretation = useCallback(async () => {
-    if (!result || !savedQuestion) return
+    if (!result) return
 
     setIsLoadingAi(true)
     setAiError(null)
@@ -113,13 +113,15 @@ export default function CoinDivination({ question }: Props) {
     try {
       // 构建API请求数据
       const requestData = {
-        question: savedQuestion,
+        question: savedQuestion || '请分析此卦象',
         hexagramResult: {
           ...result,
-          originalInfo,
-          changedInfo
+          originalInfo: originalInfo || null,
+          changedInfo: changedInfo || null
         }
       }
+
+      console.log('Sending request to AI API:', requestData)
 
       // 调用本地代理服务器 - 使用SSE
       const response = await fetch('http://localhost:3001/api/ai-interpret', {
@@ -130,6 +132,8 @@ export default function CoinDivination({ question }: Props) {
         body: JSON.stringify(requestData)
       })
 
+      console.log('AI API response status:', response.status)
+
       if (!response.ok) {
         throw new Error('Network response was not ok')
       }
@@ -138,17 +142,23 @@ export default function CoinDivination({ question }: Props) {
       const decoder = new TextDecoder()
 
       if (reader) {
+        console.log('Starting to read SSE stream')
         while (true) {
           const { done, value } = await reader.read()
-          if (done) break
+          if (done) {
+            console.log('SSE stream ended')
+            break
+          }
 
           const chunk = decoder.decode(value)
+          console.log('Received SSE chunk:', chunk)
           const lines = chunk.split('\n')
 
           for (const line of lines) {
             if (line.startsWith('data: ')) {
               try {
                 const data = JSON.parse(line.slice(6))
+                console.log('Parsed SSE data:', data)
                 if (data.success) {
                   if (data.content) {
                     // 流式追加内容
@@ -156,9 +166,11 @@ export default function CoinDivination({ question }: Props) {
                   }
                   if (data.done) {
                     // 完成
+                    console.log('AI interpretation completed')
                     setIsLoadingAi(false)
                   }
                 } else {
+                  console.error('AI API error:', data.error)
                   setAiError(data.error || '获取AI解释失败，请稍后再试')
                   setIsLoadingAi(false)
                 }
@@ -168,6 +180,10 @@ export default function CoinDivination({ question }: Props) {
             }
           }
         }
+      } else {
+        console.error('No response body')
+        setAiError('没有收到服务器响应')
+        setIsLoadingAi(false)
       }
     } catch (error) {
       console.error('Error calling AI API:', error)
