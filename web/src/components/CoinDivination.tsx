@@ -33,6 +33,11 @@ export default function CoinDivination({ question }: Props) {
   /** 硬币已落地，短暂展示结果 */
   const [coinLanded, setCoinLanded] = useState(false)
 
+  /** AI解释相关状态 */
+  const [aiInterpretation, setAiInterpretation] = useState<string>('')
+  const [isLoadingAi, setIsLoadingAi] = useState(false)
+  const [aiError, setAiError] = useState<string | null>(null)
+
   const timerRef = useRef<ReturnType<typeof setTimeout>>(null)
 
   const startDivination = useCallback(() => {
@@ -43,6 +48,10 @@ export default function CoinDivination({ question }: Props) {
     setTossCoins(null)
     setCoinFlying(false)
     setCoinLanded(false)
+    // 重置AI解释状态
+    setAiInterpretation('')
+    setIsLoadingAi(false)
+    setAiError(null)
 
     const hexResult = performDivination()
     // 立即存储用于逐步显示
@@ -92,6 +101,118 @@ export default function CoinDivination({ question }: Props) {
 
   const originalInfo = originalLines.length === 6 ? getHexagramInfo(originalLines) : null
   const changedInfo = changedLines.length === 6 ? getHexagramInfo(changedLines) : null
+
+  // 调用AI解释API - SSE版本
+  const getAiInterpretation = useCallback(async () => {
+    if (!result) return
+
+    setIsLoadingAi(true)
+    setAiError(null)
+    setAiInterpretation('') // 初始化为空字符串用于流式输出
+
+    try {
+      // 构建结构化卦象描述，供 AI 理解
+      const changingLines = result.lines.filter(l => l.changing)
+      const valueDesc: Record<number, string> = {
+        6: '老阴（动爻，将变为阳）',
+        7: '少阳（不变）',
+        8: '少阴（不变）',
+        9: '老阳（动爻，将变为阴）',
+      }
+      const linesDesc = result.lines
+        .map(l => `  ${yaoFullName(l)}：${valueDesc[l.value]}`)
+        .join('\n')
+
+      const hexagramContext = [
+        `本卦：${originalInfo?.name ?? ''}（上${originalInfo?.upperTrigram ?? ''}下${originalInfo?.lowerTrigram ?? ''}卦）`,
+        hasChanging && changedInfo
+          ? `变卦：${changedInfo.name}（上${changedInfo.upperTrigram}下${changedInfo.lowerTrigram}卦）`
+          : null,
+        changingLines.length > 0
+          ? `动爻：${changingLines.map(l => yaoFullName(l)).join('、')}`
+          : '六爻皆不变，观本卦卦义',
+        `各爻详情（初爻→上爻）：\n${linesDesc}`,
+        `断卦指引：${getReadingGuidance(result.lines, originalInfo?.name ?? '', changedInfo?.name ?? '')}`,
+      ]
+        .filter(Boolean)
+        .join('\n')
+
+      const requestData = {
+        question: savedQuestion || '请分析此卦象',
+        hexagramContext,
+      }
+
+      console.log('Sending request to AI API:', requestData)
+
+      // 调用本地代理服务器 - 使用SSE
+      const apiBase = import.meta.env.VITE_PROXY_URL ?? 'http://localhost:3001'
+      const response = await fetch(`${apiBase}/api/ai-interpret`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestData)
+      })
+
+      console.log('AI API response status:', response.status)
+
+      if (!response.ok) {
+        throw new Error('Network response was not ok')
+      }
+
+      const reader = response.body?.getReader()
+      const decoder = new TextDecoder()
+
+      if (reader) {
+        console.log('Starting to read SSE stream')
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) {
+            console.log('SSE stream ended')
+            break
+          }
+
+          const chunk = decoder.decode(value)
+          console.log('Received SSE chunk:', chunk)
+          const lines = chunk.split('\n')
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(line.slice(6))
+                console.log('Parsed SSE data:', data)
+                if (data.success) {
+                  if (data.content) {
+                    // 流式追加内容
+                    setAiInterpretation(prev => (prev || '') + data.content)
+                  }
+                  if (data.done) {
+                    // 完成
+                    console.log('AI interpretation completed')
+                    setIsLoadingAi(false)
+                  }
+                } else {
+                  console.error('AI API error:', data.error)
+                  setAiError(data.error || '获取AI解释失败，请稍后再试')
+                  setIsLoadingAi(false)
+                }
+              } catch (e) {
+                console.error('Error parsing SSE data:', e)
+              }
+            }
+          }
+        }
+      } else {
+        console.error('No response body')
+        setAiError('没有收到服务器响应')
+        setIsLoadingAi(false)
+      }
+    } catch (error) {
+      console.error('Error calling AI API:', error)
+      setAiError('网络错误，请检查代理服务器是否运行')
+      setIsLoadingAi(false)
+    }
+  }, [result, savedQuestion, originalInfo, changedInfo])
 
   return (
     <section className="divination">
@@ -201,6 +322,32 @@ export default function CoinDivination({ question }: Props) {
           <div className="reading-guidance">
             <span className="reading-guidance-icon">📖</span>
             <span>{getReadingGuidance(result.lines, originalInfo?.name ?? '', changedInfo?.name ?? '')}</span>
+          </div>
+
+          {/* AI解释 */}
+          <div className="ai-section">
+            <button
+              className="ai-btn"
+              onClick={getAiInterpretation}
+              disabled={isLoadingAi || aiInterpretation.length > 0}
+            >
+              {isLoadingAi ? 'AI分析中...' : aiInterpretation.length > 0 ? '已分析' : '🤖 AI卦象分析'}
+            </button>
+
+            {isLoadingAi && aiInterpretation.length === 0 && (
+              <div className="ai-loading">正在分析卦象，请稍候...</div>
+            )}
+
+            {aiError && (
+              <div className="ai-error">{aiError}</div>
+            )}
+
+            {aiInterpretation.length > 0 && (
+              <div className="ai-interpretation">
+                <h3 className="ai-title">AI卦象分析</h3>
+                <div className="ai-content">{aiInterpretation}</div>
+              </div>
+            )}
           </div>
         </div>
       )}
