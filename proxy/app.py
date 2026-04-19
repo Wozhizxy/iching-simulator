@@ -9,13 +9,17 @@ from dotenv import load_dotenv
 load_dotenv()
 
 app = Flask(__name__)
-CORS(app)
+ALLOWED_ORIGINS = [
+    'http://localhost:5173',
+    'https://wozhizxy.github.io',
+]
+CORS(app, origins=ALLOWED_ORIGINS)
 
 PORT = os.getenv('PORT', 3001)
 
 # 智谱API配置
 ZHIPU_API_KEY = os.getenv('ZHIPU_API_KEY')
-ZHIPU_API_URL = 'https://open.bigmodel.cn/api/mock/chat/completions'
+ZHIPU_API_URL = 'https://open.bigmodel.cn/api/paas/v4/chat/completions'
 
 # 健康检查
 @app.route('/health', methods=['GET'])
@@ -30,11 +34,11 @@ def ai_interpret():
     data = request.json
     print(f"Request data: {data}")
     
-    question = data.get('question')
-    hexagram_result = data.get('hexagramResult')
-    
-    if not question or not hexagram_result:
-        error_msg = "Missing required parameters"
+    question = data.get('question', '请分析此卦象')
+    hexagram_context = data.get('hexagramContext', '')
+
+    if not hexagram_context:
+        error_msg = "缺少卦象信息（hexagramContext）"
         print(f"Error: {error_msg}")
         return Response(
             f"data: {json.dumps({'success': False, 'error': error_msg}, ensure_ascii=False)}\n\n",
@@ -46,21 +50,31 @@ def ai_interpret():
             }
         )
 
+    system_prompt = (
+        "你是精通《周易》的占卜师，深研六十四卦、三百八十四爻及《易传》义理。"
+        "请根据用户所问之事与铜钱起卦所得卦象，给出专业、深入的分析与指引，结构如下：\n"
+        "1. 本卦象征：阐述卦名内涵、上下卦交感之义；\n"
+        "2. 动爻与变卦解析（若有）：结合变爻位置与变卦，揭示事态走向；\n"
+        "3. 切题指引：紧扣用户所问，给出具体、可行的建议；\n"
+        "4. 总论：以一两句话提炼核心启示。\n"
+        "语言要典雅而通俗，以中文作答，篇幅适中（400～600字）。"
+    )
+
+    user_message = (
+        f"所问之事：{question}\n\n"
+        f"【铜钱起卦结果】\n{hexagram_context}\n\n"
+        "请依据上述卦象，对所问之事作出详解与指引。"
+    )
+
     # 构建智谱API请求 - 启用流式响应
     request_data = {
         "model": "glm-4-flash",
         "messages": [
-            {
-                "role": "system",
-                "content": "你是一个专业的易经占卜解释师，精通易经卦象分析。请根据用户提供的占卜结果，给出详细、专业的解释。解释应包括：1. 卦象的基本含义 2. 针对用户问题的具体分析 3. 给出合理的建议。请使用中文回答，语言要专业但易懂。"
-            },
-            {
-                "role": "user",
-                "content": f"用户问题：{question}\n\n占卜结果：{hexagram_result}"
-            }
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_message}
         ],
         "temperature": 0.7,
-        "max_tokens": 1000,
+        "max_tokens": 1200,
         "stream": True
     }
 
@@ -74,23 +88,40 @@ def ai_interpret():
 
     def generate():
         try:
-            # 直接返回模拟数据，不调用API
-            print("Returning simulated SSE response")
-            
-            # 模拟流式输出
-            simulated_response = "根据您的卦象，我为您提供以下分析：\n\n1. 卦象基本含义：\n本卦为乾为天，象征着刚健、进取、成功。乾卦是易经六十四卦之首，代表着阳性的力量和积极向上的精神。\n\n2. 针对您的问题：\n您所问的问题涉及到事业发展，乾卦显示您正处于一个充满机遇的时期，只要保持积极进取的态度，就能够取得成功。\n\n3. 建议：\n- 保持自信，勇于面对挑战\n- 制定明确的目标和计划\n- 善于把握时机，果断行动\n- 保持谦虚，不断学习和提升自己\n\n祝您事业顺利，心想事成！"
-            
-            # 逐字发送模拟数据
-            for char in simulated_response:
-                yield f"data: {json.dumps({'success': True, 'content': char}, ensure_ascii=False)}\n\n"
-            
-            # 发送完成信号
-            yield f"data: {json.dumps({'success': True, 'done': True}, ensure_ascii=False)}\n\n"
+            print(f"Calling Zhipu API: {ZHIPU_API_URL}")
+            with requests.post(
+                ZHIPU_API_URL,
+                headers=headers,
+                json=request_data,
+                stream=True,
+                timeout=60
+            ) as resp:
+                resp.raise_for_status()
+                for raw_line in resp.iter_lines():
+                    if not raw_line:
+                        continue
+                    line = raw_line.decode('utf-8') if isinstance(raw_line, bytes) else raw_line
+                    if not line.startswith('data: '):
+                        continue
+                    payload = line[6:].strip()
+                    if payload == '[DONE]':
+                        yield f"data: {json.dumps({'success': True, 'done': True}, ensure_ascii=False)}\n\n"
+                        break
+                    try:
+                        chunk = json.loads(payload)
+                        delta = chunk['choices'][0]['delta'].get('content', '')
+                        if delta:
+                            yield f"data: {json.dumps({'success': True, 'content': delta}, ensure_ascii=False)}\n\n"
+                        finish_reason = chunk['choices'][0].get('finish_reason')
+                        if finish_reason and finish_reason != 'null':
+                            yield f"data: {json.dumps({'success': True, 'done': True}, ensure_ascii=False)}\n\n"
+                    except (json.JSONDecodeError, KeyError, IndexError) as parse_err:
+                        print(f"Parse error: {parse_err}, line: {line}")
+                        continue
             print("SSE response completed")
-                
         except Exception as error:
             print(f"Error in generate function: {error}")
-            yield f"data: {json.dumps({'success': False, 'error': f'Failed to get AI interpretation: {str(error)}'}, ensure_ascii=False)}\n\n"
+            yield f"data: {json.dumps({'success': False, 'error': f'AI解析失败：{str(error)}'}, ensure_ascii=False)}\n\n"
 
     # 设置SSE响应头
     print("Starting SSE response")
@@ -105,4 +136,5 @@ def ai_interpret():
     )
 
 if __name__ == '__main__':
-    app.run(port=PORT, debug=True)
+    is_prod = os.getenv('RENDER') or os.getenv('RAILWAY_ENVIRONMENT')
+    app.run(host='0.0.0.0', port=int(PORT), debug=not is_prod)

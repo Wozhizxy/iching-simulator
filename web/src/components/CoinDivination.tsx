@@ -111,20 +111,42 @@ export default function CoinDivination({ question }: Props) {
     setAiInterpretation('') // 初始化为空字符串用于流式输出
 
     try {
-      // 构建API请求数据
+      // 构建结构化卦象描述，供 AI 理解
+      const changingLines = result.lines.filter(l => l.changing)
+      const valueDesc: Record<number, string> = {
+        6: '老阴（动爻，将变为阳）',
+        7: '少阳（不变）',
+        8: '少阴（不变）',
+        9: '老阳（动爻，将变为阴）',
+      }
+      const linesDesc = result.lines
+        .map(l => `  ${yaoFullName(l)}：${valueDesc[l.value]}`)
+        .join('\n')
+
+      const hexagramContext = [
+        `本卦：${originalInfo?.name ?? ''}（上${originalInfo?.upperTrigram ?? ''}下${originalInfo?.lowerTrigram ?? ''}卦）`,
+        hasChanging && changedInfo
+          ? `变卦：${changedInfo.name}（上${changedInfo.upperTrigram}下${changedInfo.lowerTrigram}卦）`
+          : null,
+        changingLines.length > 0
+          ? `动爻：${changingLines.map(l => yaoFullName(l)).join('、')}`
+          : '六爻皆不变，观本卦卦义',
+        `各爻详情（初爻→上爻）：\n${linesDesc}`,
+        `断卦指引：${getReadingGuidance(result.lines, originalInfo?.name ?? '', changedInfo?.name ?? '')}`,
+      ]
+        .filter(Boolean)
+        .join('\n')
+
       const requestData = {
         question: savedQuestion || '请分析此卦象',
-        hexagramResult: {
-          ...result,
-          originalInfo: originalInfo || null,
-          changedInfo: changedInfo || null
-        }
+        hexagramContext,
       }
 
       console.log('Sending request to AI API:', requestData)
 
       // 调用本地代理服务器 - 使用SSE
-      const response = await fetch('http://localhost:3001/api/ai-interpret', {
+      const apiBase = import.meta.env.VITE_PROXY_URL ?? 'http://localhost:3001'
+      const response = await fetch(`${apiBase}/api/ai-interpret`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
