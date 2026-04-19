@@ -92,6 +92,16 @@ export default function CoinDivination({ question }: Props) {
     timerRef.current = setTimeout(revealNext, 300)
   }, [question])
 
+  const hasChanging = result?.lines.some((l) => l.changing) ?? false
+
+  const originalLines = result ? result.lines.map((l) => l.type === 'yang') : []
+  const changedLines = result
+    ? result.lines.map((l) => (l.changing ? l.type !== 'yang' : l.type === 'yang'))
+    : []
+
+  const originalInfo = originalLines.length === 6 ? getHexagramInfo(originalLines) : null
+  const changedInfo = changedLines.length === 6 ? getHexagramInfo(changedLines) : null
+
   // 调用AI解释API - SSE版本
   const getAiInterpretation = useCallback(async () => {
     if (!result || !savedQuestion) return
@@ -165,16 +175,6 @@ export default function CoinDivination({ question }: Props) {
       setIsLoadingAi(false)
     }
   }, [result, savedQuestion, originalInfo, changedInfo])
-
-  const hasChanging = result?.lines.some((l) => l.changing) ?? false
-
-  const originalLines = result ? result.lines.map((l) => l.type === 'yang') : []
-  const changedLines = result
-    ? result.lines.map((l) => (l.changing ? l.type !== 'yang' : l.type === 'yang'))
-    : []
-
-  const originalInfo = originalLines.length === 6 ? getHexagramInfo(originalLines) : null
-  const changedInfo = changedLines.length === 6 ? getHexagramInfo(changedLines) : null
 
   return (
     <section className="divination">
