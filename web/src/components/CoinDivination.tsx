@@ -34,7 +34,7 @@ export default function CoinDivination({ question }: Props) {
   const [coinLanded, setCoinLanded] = useState(false)
 
   /** AI解释相关状态 */
-  const [aiInterpretation, setAiInterpretation] = useState<string | null>(null)
+  const [aiInterpretation, setAiInterpretation] = useState<string>('')
   const [isLoadingAi, setIsLoadingAi] = useState(false)
   const [aiError, setAiError] = useState<string | null>(null)
 
@@ -49,7 +49,7 @@ export default function CoinDivination({ question }: Props) {
     setCoinFlying(false)
     setCoinLanded(false)
     // 重置AI解释状态
-    setAiInterpretation(null)
+    setAiInterpretation('')
     setIsLoadingAi(false)
     setAiError(null)
 
@@ -92,13 +92,13 @@ export default function CoinDivination({ question }: Props) {
     timerRef.current = setTimeout(revealNext, 300)
   }, [question])
 
-  // 调用AI解释API
+  // 调用AI解释API - SSE版本
   const getAiInterpretation = useCallback(async () => {
     if (!result || !savedQuestion) return
 
     setIsLoadingAi(true)
     setAiError(null)
-    setAiInterpretation(null)
+    setAiInterpretation('') // 初始化为空字符串用于流式输出
 
     try {
       // 构建API请求数据
@@ -111,7 +111,7 @@ export default function CoinDivination({ question }: Props) {
         }
       }
 
-      // 调用本地代理服务器
+      // 调用本地代理服务器 - 使用SSE
       const response = await fetch('http://localhost:3001/api/ai-interpret', {
         method: 'POST',
         headers: {
@@ -120,17 +120,48 @@ export default function CoinDivination({ question }: Props) {
         body: JSON.stringify(requestData)
       })
 
-      const data = await response.json()
+      if (!response.ok) {
+        throw new Error('Network response was not ok')
+      }
 
-      if (data.success) {
-        setAiInterpretation(data.interpretation)
-      } else {
-        setAiError('获取AI解释失败，请稍后再试')
+      const reader = response.body?.getReader()
+      const decoder = new TextDecoder()
+
+      if (reader) {
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+
+          const chunk = decoder.decode(value)
+          const lines = chunk.split('\n')
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(line.slice(6))
+                if (data.success) {
+                  if (data.content) {
+                    // 流式追加内容
+                    setAiInterpretation(prev => (prev || '') + data.content)
+                  }
+                  if (data.done) {
+                    // 完成
+                    setIsLoadingAi(false)
+                  }
+                } else {
+                  setAiError(data.error || '获取AI解释失败，请稍后再试')
+                  setIsLoadingAi(false)
+                }
+              } catch (e) {
+                console.error('Error parsing SSE data:', e)
+              }
+            }
+          }
+        }
       }
     } catch (error) {
       console.error('Error calling AI API:', error)
       setAiError('网络错误，请检查代理服务器是否运行')
-    } finally {
       setIsLoadingAi(false)
     }
   }, [result, savedQuestion, originalInfo, changedInfo])
@@ -260,12 +291,12 @@ export default function CoinDivination({ question }: Props) {
             <button
               className="ai-btn"
               onClick={getAiInterpretation}
-              disabled={isLoadingAi || !!aiInterpretation}
+              disabled={isLoadingAi || aiInterpretation.length > 0}
             >
-              {isLoadingAi ? 'AI分析中...' : aiInterpretation ? '已分析' : '🤖 AI卦象分析'}
+              {isLoadingAi ? 'AI分析中...' : aiInterpretation.length > 0 ? '已分析' : '🤖 AI卦象分析'}
             </button>
 
-            {isLoadingAi && (
+            {isLoadingAi && aiInterpretation.length === 0 && (
               <div className="ai-loading">正在分析卦象，请稍候...</div>
             )}
 
@@ -273,7 +304,7 @@ export default function CoinDivination({ question }: Props) {
               <div className="ai-error">{aiError}</div>
             )}
 
-            {aiInterpretation && (
+            {aiInterpretation.length > 0 && (
               <div className="ai-interpretation">
                 <h3 className="ai-title">AI卦象分析</h3>
                 <div className="ai-content">{aiInterpretation}</div>
