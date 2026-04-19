@@ -33,6 +33,11 @@ export default function CoinDivination({ question }: Props) {
   /** 硬币已落地，短暂展示结果 */
   const [coinLanded, setCoinLanded] = useState(false)
 
+  /** AI解释相关状态 */
+  const [aiInterpretation, setAiInterpretation] = useState<string | null>(null)
+  const [isLoadingAi, setIsLoadingAi] = useState(false)
+  const [aiError, setAiError] = useState<string | null>(null)
+
   const timerRef = useRef<ReturnType<typeof setTimeout>>(null)
 
   const startDivination = useCallback(() => {
@@ -43,6 +48,10 @@ export default function CoinDivination({ question }: Props) {
     setTossCoins(null)
     setCoinFlying(false)
     setCoinLanded(false)
+    // 重置AI解释状态
+    setAiInterpretation(null)
+    setIsLoadingAi(false)
+    setAiError(null)
 
     const hexResult = performDivination()
     // 立即存储用于逐步显示
@@ -82,6 +91,49 @@ export default function CoinDivination({ question }: Props) {
     // 启动第一次抛掷
     timerRef.current = setTimeout(revealNext, 300)
   }, [question])
+
+  // 调用AI解释API
+  const getAiInterpretation = useCallback(async () => {
+    if (!result || !savedQuestion) return
+
+    setIsLoadingAi(true)
+    setAiError(null)
+    setAiInterpretation(null)
+
+    try {
+      // 构建API请求数据
+      const requestData = {
+        question: savedQuestion,
+        hexagramResult: {
+          ...result,
+          originalInfo,
+          changedInfo
+        }
+      }
+
+      // 调用本地代理服务器
+      const response = await fetch('http://localhost:3001/api/ai-interpret', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestData)
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        setAiInterpretation(data.interpretation)
+      } else {
+        setAiError('获取AI解释失败，请稍后再试')
+      }
+    } catch (error) {
+      console.error('Error calling AI API:', error)
+      setAiError('网络错误，请检查代理服务器是否运行')
+    } finally {
+      setIsLoadingAi(false)
+    }
+  }, [result, savedQuestion, originalInfo, changedInfo])
 
   const hasChanging = result?.lines.some((l) => l.changing) ?? false
 
@@ -201,6 +253,32 @@ export default function CoinDivination({ question }: Props) {
           <div className="reading-guidance">
             <span className="reading-guidance-icon">📖</span>
             <span>{getReadingGuidance(result.lines, originalInfo?.name ?? '', changedInfo?.name ?? '')}</span>
+          </div>
+
+          {/* AI解释 */}
+          <div className="ai-section">
+            <button
+              className="ai-btn"
+              onClick={getAiInterpretation}
+              disabled={isLoadingAi || !!aiInterpretation}
+            >
+              {isLoadingAi ? 'AI分析中...' : aiInterpretation ? '已分析' : '🤖 AI卦象分析'}
+            </button>
+
+            {isLoadingAi && (
+              <div className="ai-loading">正在分析卦象，请稍候...</div>
+            )}
+
+            {aiError && (
+              <div className="ai-error">{aiError}</div>
+            )}
+
+            {aiInterpretation && (
+              <div className="ai-interpretation">
+                <h3 className="ai-title">AI卦象分析</h3>
+                <div className="ai-content">{aiInterpretation}</div>
+              </div>
+            )}
           </div>
         </div>
       )}
